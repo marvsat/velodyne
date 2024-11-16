@@ -1,6 +1,55 @@
 Change history
 ==============
 
+2.5.1 (2024-10-31)
+------------------
+
+2.5.0 (2024-10-30)
+------------------
+* feat(config): make parameter 'enabled' dynamic (`#548 <https://github.com/ros-drivers/velodyne/issues/548>`_)
+* Clalancette/cmake cleanups (`#546 <https://github.com/ros-drivers/velodyne/issues/546>`_)
+* feat: support vls128 for ros2 (`#493 <https://github.com/ros-drivers/velodyne/issues/493>`_)
+* Update rolling ci (`#512 <https://github.com/ros-drivers/velodyne/issues/512>`_) (`#513 <https://github.com/ros-drivers/velodyne/issues/513>`_)
+* Contributors: Chris Lalancette, Daisuke Nishimatsu, Joshua Whitley
+
+2.4.0 (2023-05-27)
+------------------
+* Disable cut_angle by default. (`#497 <https://github.com/ros-drivers/velodyne/issues/497>`_)
+* Unify tf frame parameters between transform and cloud nodes (`#344 <https://github.com/ros-drivers/velodyne/issues/344>`_) (`#453 <https://github.com/ros-drivers/velodyne/issues/453>`_)
+  * Unify tf frame parameters between transform and cloud nodes
+  At this point there is no need any more for cloud node because transform node includes all features of cloud node.
+  Co-authored-by: AndreasR30 <andreas-reich@live.de>
+  Co-authored-by: anre <andreas.reich@unibw.de>
+* Contributors: Daisuke Nishimatsu, Joshua Whitley
+
+2.3.0 (2022-07-08)
+------------------
+* Updating maintainer email address. (`#450 <https://github.com/ros-drivers/velodyne/issues/450>`_)
+  * Updating maintainer email address.
+  * chore: update maintainer email address
+  Co-authored-by: Joshua Whitley <jwhitley@autonomoustuff.com>
+* fix: use rclcpp logger instead of perror
+  Co-authored-by: Chris Lalancette <clalancette@gmail.com>
+* reuse Velodyne UDP port (`#427 <https://github.com/ros-drivers/velodyne/issues/427>`_)
+* Added config option to timestamp a full scan based on first velo packet instead of last packet (`#436 <https://github.com/ros-drivers/velodyne/issues/436>`_)
+  Co-authored-by: Shawn Hanna <shawn@kaarta.com>
+* Replace deprecated argument names in launch (`#430 <https://github.com/ros-drivers/velodyne/issues/430>`_)
+* 2.1.1
+* Updating for first Galactic release
+* Minor fixes to string formatting. (`#396 <https://github.com/ros-drivers/velodyne/issues/396>`_)
+  These changes will allow velodyne to compile without warnings
+  on Rolling (soon to be Galactic).  The changes are also backwards
+  compatible to Foxy if we want to backport them.
+* Contributors: Chris Lalancette, Daisuke Nishimatsu, Joshua Whitley, Keane Quigley, Nagy Dániel Zoltán
+
+2.1.1 (2021-08-23)
+------------------
+* Minor fixes to string formatting. (`#396 <https://github.com/ros-drivers/velodyne/issues/396>`_)
+  These changes will allow velodyne to compile without warnings
+  on Rolling (soon to be Galactic).  The changes are also backwards
+  compatible to Foxy if we want to backport them.
+* Contributors: Chris Lalancette
+
 2.1.0 (2020-07-10)
 ------------------
 * Fixing Foxy-specific uncrustify errors.

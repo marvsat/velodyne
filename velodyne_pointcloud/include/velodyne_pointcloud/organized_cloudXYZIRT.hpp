@@ -1,4 +1,4 @@
-// Copyright 2012, 2019 Austin Robot Technology, Jack O'Quin, Joshua Whitley
+// Copyright 2012, 2019 Austin Robot Technology, Jack O'Quin, Joshua Whitley, Sebastian Pütz  // NOLINT
 // All rights reserved.
 //
 // Software License Agreement (BSD License 2.0)
@@ -30,26 +30,43 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <rclcpp/rclcpp.hpp>
+#ifndef VELODYNE_POINTCLOUD__ORGANIZED_CLOUDXYZIRT_HPP_
+#define VELODYNE_POINTCLOUD__ORGANIZED_CLOUDXYZIRT_HPP_
+
+#include <tf2/buffer_core.h>
 
 #include <memory>
+#include <string>
 
-#include "velodyne_pointcloud/convert.hpp"
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <velodyne_msgs/msg/velodyne_scan.hpp>
 
-/** Main node entry point. */
-int main(int argc, char ** argv)
+#include "velodyne_pointcloud/datacontainerbase.hpp"
+
+namespace velodyne_pointcloud
 {
-  // Force flush of the stdout buffer.
-  setvbuf(stdout, nullptr, _IONBF, BUFSIZ);
+class OrganizedCloudXYZIRT final
+  : public velodyne_rawdata::DataContainerBase
+{
+public:
+  OrganizedCloudXYZIRT(
+    const double min_range, const double max_range, const std::string & target_frame,
+    const std::string & fixed_frame, const unsigned int num_lasers,
+    const unsigned int scans_per_block, rclcpp::Clock::SharedPtr clock);
 
-  rclcpp::init(argc, argv);
+  void newLine() override;
 
-  // handle callbacks until shut down
-  rclcpp::spin(
-    std::make_shared<velodyne_pointcloud::Convert>(
-      rclcpp::NodeOptions()));
+  void setup(const velodyne_msgs::msg::VelodyneScan::ConstSharedPtr scan_msg) override;
 
-  rclcpp::shutdown();
+  void addPoint(
+    float x, float y, float z, const uint16_t ring,
+    const float distance, const float intensity, const float time) override;
 
-  return 0;
-}
+private:
+  sensor_msgs::PointCloud2Iterator<float> iter_x_, iter_y_, iter_z_, iter_intensity_;
+  sensor_msgs::PointCloud2Iterator<uint16_t> iter_ring_;
+  sensor_msgs::PointCloud2Iterator<float> iter_time_;
+};
+}  // namespace velodyne_pointcloud
+
+#endif  // VELODYNE_POINTCLOUD__ORGANIZED_CLOUDXYZIRT_HPP_

@@ -30,48 +30,51 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <sensor_msgs/msg/point_field.hpp>
-#include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <tf2/buffer_core.h>
 
 #include <cmath>
 #include <memory>
 #include <string>
 
-#include "velodyne_pointcloud/organized_cloudXYZIR.hpp"
+#include <sensor_msgs/msg/point_field.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+
+#include "velodyne_pointcloud/organized_cloudXYZIRT.hpp"
 
 namespace velodyne_pointcloud
 {
 
-OrganizedCloudXYZIR::OrganizedCloudXYZIR(
+OrganizedCloudXYZIRT::OrganizedCloudXYZIRT(
   const double min_range, const double max_range,
   const std::string & target_frame, const std::string & fixed_frame,
   const unsigned int num_lasers, const unsigned int scans_per_block,
-  tf2::BufferCore & buffer)
+  rclcpp::Clock::SharedPtr clock)
 : DataContainerBase(
     min_range, max_range, target_frame, fixed_frame,
-    num_lasers, 0, false, scans_per_block, buffer, 5,
+    num_lasers, 0, false, scans_per_block, clock, 6,
     "x", 1, sensor_msgs::msg::PointField::FLOAT32,
     "y", 1, sensor_msgs::msg::PointField::FLOAT32,
     "z", 1, sensor_msgs::msg::PointField::FLOAT32,
     "intensity", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "ring", 1, sensor_msgs::msg::PointField::UINT16),
+    "ring", 1, sensor_msgs::msg::PointField::UINT16,
+    "time", 1, sensor_msgs::msg::PointField::FLOAT32),
   iter_x_(cloud, "x"), iter_y_(cloud, "y"), iter_z_(cloud, "z"),
-  iter_intensity_(cloud, "intensity"), iter_ring_(cloud, "ring")
+  iter_intensity_(cloud, "intensity"), iter_ring_(cloud, "ring"), iter_time_(cloud, "time")
 {
 }
 
-void OrganizedCloudXYZIR::newLine()
+void OrganizedCloudXYZIRT::newLine()
 {
   iter_x_ = iter_x_ + config_.init_width;
   iter_y_ = iter_y_ + config_.init_width;
   iter_z_ = iter_z_ + config_.init_width;
   iter_ring_ = iter_ring_ + config_.init_width;
   iter_intensity_ = iter_intensity_ + config_.init_width;
+  iter_time_ = iter_time_ + config_.init_width;
   ++cloud.height;
 }
 
-void OrganizedCloudXYZIR::setup(const velodyne_msgs::msg::VelodyneScan::SharedPtr scan_msg)
+void OrganizedCloudXYZIRT::setup(const velodyne_msgs::msg::VelodyneScan::ConstSharedPtr scan_msg)
 {
   DataContainerBase::setup(scan_msg);
   iter_x_ = sensor_msgs::PointCloud2Iterator<float>(cloud, "x");
@@ -79,11 +82,12 @@ void OrganizedCloudXYZIR::setup(const velodyne_msgs::msg::VelodyneScan::SharedPt
   iter_z_ = sensor_msgs::PointCloud2Iterator<float>(cloud, "z");
   iter_intensity_ = sensor_msgs::PointCloud2Iterator<float>(cloud, "intensity");
   iter_ring_ = sensor_msgs::PointCloud2Iterator<uint16_t>(cloud, "ring");
+  iter_time_ = sensor_msgs::PointCloud2Iterator<float>(cloud, "time");
 }
 
-void OrganizedCloudXYZIR::addPoint(
+void OrganizedCloudXYZIRT::addPoint(
   float x, float y, float z, const uint16_t ring,
-  const float distance, const float intensity)
+  const float distance, const float intensity, const float time)
 {
   /** The laser values are not ordered, the organized structure
    * needs ordered neighbour points. The right order is defined
@@ -92,21 +96,21 @@ void OrganizedCloudXYZIR::addPoint(
    * NaN.
    */
   if (pointInRange(distance)) {
-    if (config_.transform) {
-      transformPoint(x, y, z);
-    }
+    transformPoint(x, y, z);
 
     *(iter_x_ + ring) = x;
     *(iter_y_ + ring) = y;
     *(iter_z_ + ring) = z;
     *(iter_intensity_ + ring) = intensity;
     *(iter_ring_ + ring) = ring;
+    *(iter_time_ + ring) = time;
   } else {
     *(iter_x_ + ring) = nanf("");
     *(iter_y_ + ring) = nanf("");
     *(iter_z_ + ring) = nanf("");
     *(iter_intensity_ + ring) = ::nanf("");
     *(iter_ring_ + ring) = ring;
+    *(iter_time_ + ring) = time;
   }
 }
 

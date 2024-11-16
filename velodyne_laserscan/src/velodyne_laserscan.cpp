@@ -32,6 +32,11 @@
 
 #include "velodyne_laserscan/velodyne_laserscan.hpp"
 
+#include <cmath>
+#include <functional>
+#include <memory>
+#include <utility>
+
 #include <rcl_interfaces/msg/floating_point_range.hpp>
 #include <rcl_interfaces/msg/integer_range.hpp>
 #include <rcl_interfaces/msg/parameter_descriptor.hpp>
@@ -41,11 +46,6 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-
-#include <cmath>
-#include <functional>
-#include <memory>
-#include <utility>
 
 namespace velodyne_laserscan
 {
@@ -156,10 +156,12 @@ void VelodyneLaserScan::recvCallback(const sensor_msgs::msg::PointCloud2::Shared
     }
   }
 
+  (void)offset_z;
+
   // Construct LaserScan message
   if ((offset_x >= 0) && (offset_y >= 0) && (offset_r >= 0)) {
     const float kResolution = std::abs(resolution_);
-    const size_t kSize = 2.0 * M_PI / kResolution;
+    const size_t kSize = std::round(2.0 * M_PI / kResolution);
     auto scan = std::make_unique<sensor_msgs::msg::LaserScan>();
     scan->header = msg->header;
     scan->angle_increment = kResolution;
@@ -172,24 +174,27 @@ void VelodyneLaserScan::recvCallback(const sensor_msgs::msg::PointCloud2::Shared
 
     if ((offset_x == 0) &&
       (offset_y == 4) &&
-      (offset_z == 8) &&
-      (offset_i == 16) &&
-      (offset_r == 20))
+      (offset_i % 4 == 0) &&
+      (offset_r % 4 == 0))
     {
       scan->intensities.resize(kSize);
 
+      const size_t X = 0;
+      const size_t Y = 1;
+      const size_t I = offset_i / 4;
+      const size_t R = offset_r / 4;
       for (sensor_msgs::PointCloud2ConstIterator<float> it(*msg, "x"); it != it.end(); ++it) {
         // Field "ring" is of UINT16 type, 2 bytes long. But this loop's iterator assumes FLOAT32
         // type fields, 4 bytes long. Thus, de-referencing it (even) at the right offset will
         // only yield "ring" field bytes, plus 2 bytes right after it, interpreted as a float
         // value. We can, however, re-interpret that float value binary representation as that
         // of an unsigned integer, 16 bit long.
-        const uint16_t r = *(reinterpret_cast<const uint16_t *>(&it[5]));
+        const uint16_t r = *(reinterpret_cast<const uint16_t *>(&it[R]));
 
         if (r == ring) {
-          const float x = it[0];  // x
-          const float y = it[1];  // y
-          const float i = it[4];  // intensity
+          const float x = it[X];  // x
+          const float y = it[Y];  // y
+          const float i = it[I];  // intensity
           const int bin = (::atan2f(y, x) + static_cast<float>(M_PI)) / kResolution;
 
           if ((bin >= 0) && (bin < static_cast<int>(kSize))) {

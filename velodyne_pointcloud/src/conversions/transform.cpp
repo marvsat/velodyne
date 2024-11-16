@@ -32,10 +32,6 @@
 
 #include "velodyne_pointcloud/transform.hpp"
 
-#include <rcl_interfaces/msg/floating_point_range.hpp>
-#include <rcl_interfaces/msg/parameter_descriptor.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp_components/register_node_macro.hpp>
 #include <tf2_ros/message_filter.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -44,8 +40,13 @@
 #include <memory>
 #include <string>
 
-#include "velodyne_pointcloud/organized_cloudXYZIR.hpp"
-#include "velodyne_pointcloud/pointcloudXYZIR.hpp"
+#include <rcl_interfaces/msg/floating_point_range.hpp>
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_components/register_node_macro.hpp>
+
+#include "velodyne_pointcloud/organized_cloudXYZIRT.hpp"
+#include "velodyne_pointcloud/pointcloudXYZIRT.hpp"
 #include "velodyne_pointcloud/rawdata.hpp"
 
 namespace velodyne_pointcloud
@@ -53,10 +54,10 @@ namespace velodyne_pointcloud
 
 Transform::Transform(const rclcpp::NodeOptions & options)
 : rclcpp::Node("velodyne_transform_node", options),
-  velodyne_scan_(this, "velodyne_packets"), tf_buffer_(this->get_clock()),
   diagnostics_(this)
 {
   std::string calibration_file = this->declare_parameter("calibration", "");
+  const auto model = this->declare_parameter("model", "64E");
 
   rcl_interfaces::msg::ParameterDescriptor min_range_desc;
   min_range_desc.name = "min_range";
@@ -74,7 +75,7 @@ Transform::Transform(const rclcpp::NodeOptions & options)
   max_range_desc.description = "maximum range to publish";
   rcl_interfaces::msg::FloatingPointRange max_range_range;
   max_range_range.from_value = 0.1;
-  max_range_range.to_value = 200.0;
+  max_range_range.to_value = 300.0;
   max_range_desc.floating_point_range.push_back(max_range_range);
   double max_range = this->declare_parameter("max_range", 130.0, max_range_desc);
 
@@ -98,34 +99,29 @@ Transform::Transform(const rclcpp::NodeOptions & options)
   view_width_desc.floating_point_range.push_back(view_width_range);
   double view_width = this->declare_parameter("view_width", 2.0 * M_PI, view_width_desc);
 
-  std::string target_frame = this->declare_parameter("frame_id", "map");
-  std::string fixed_frame = this->declare_parameter("fixed_frame", "odom");
+  std::string fixed_frame = this->declare_parameter("fixed_frame", "");
+  std::string target_frame = this->declare_parameter("target_frame", "");
   bool organize_cloud = this->declare_parameter("organize_cloud", true);
 
   RCLCPP_INFO(this->get_logger(), "correction angles: %s", calibration_file.c_str());
 
-  data_ = std::make_unique<velodyne_rawdata::RawData>(calibration_file);
+  data_ = std::make_unique<velodyne_rawdata::RawData>(calibration_file, model);
 
   if (organize_cloud) {
-    container_ptr_ = std::make_unique<OrganizedCloudXYZIR>(
+    container_ptr_ = std::make_unique<OrganizedCloudXYZIRT>(
       min_range, max_range, target_frame, fixed_frame, data_->numLasers(),
-      data_->scansPerPacket(), tf_buffer_);
+      data_->scansPerPacket(), this->get_clock());
   } else {
-    container_ptr_ = std::make_unique<PointcloudXYZIR>(
+    container_ptr_ = std::make_unique<PointcloudXYZIRT>(
       min_range, max_range, target_frame, fixed_frame,
-      data_->scansPerPacket(), tf_buffer_);
+      data_->scansPerPacket(), this->get_clock());
   }
 
   // advertise output point cloud (before subscribing to input data)
   output_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("velodyne_points", 10);
 
-  // subscribe to VelodyneScan packets using transform filter
-  tf_filter_ =
-    std::make_unique<tf2_ros::MessageFilter<velodyne_msgs::msg::VelodyneScan>>(
-    velodyne_scan_, tf_buffer_, target_frame, 10,
-    this->get_node_logging_interface(), this->get_node_clock_interface());
-  tf_filter_->registerCallback(
-    std::bind(&Transform::processScan, this, std::placeholders::_1));
+  velodyne_scan_ = this->create_subscription<velodyne_msgs::msg::VelodyneScan>(
+    "velodyne_packets", 10, std::bind(&Transform::processScan, this, std::placeholders::_1));
 
   // Diagnostics
   diagnostics_.setHardwareID("Velodyne Transform");
@@ -148,7 +144,7 @@ Transform::Transform(const rclcpp::NodeOptions & options)
  *       the configured @c frame_id can succeed.
  */
 void Transform::processScan(
-  const std::shared_ptr<const velodyne_msgs::msg::VelodyneScan> & scanMsg)
+  const velodyne_msgs::msg::VelodyneScan::ConstSharedPtr scanMsg)
 {
   if (output_->get_subscription_count() == 0 &&
     output_->get_intra_process_subscription_count() == 0)    // no one listening?
@@ -156,13 +152,23 @@ void Transform::processScan(
     return;
   }
 
-  velodyne_msgs::msg::VelodyneScan * raw =
-    const_cast<velodyne_msgs::msg::VelodyneScan *>(scanMsg.get());
-  container_ptr_->setup(std::shared_ptr<velodyne_msgs::msg::VelodyneScan>(raw));
+  container_ptr_->setup(scanMsg);
+
+  // sufficient to calculate single transform for whole scan
+  if (!container_ptr_->computeTransformToTarget(scanMsg->header.stamp)) {
+    // target frame not available
+    return;
+  }
 
   // process each packet provided by the driver
   for (size_t i = 0; i < scanMsg->packets.size(); ++i) {
-    data_->unpack(scanMsg->packets[i], *container_ptr_);
+    // calculate individual transform for each packet to account for ego
+    // during one rotation of the velodyne sensor
+    if (!container_ptr_->computeTransformToFixed(scanMsg->packets[i].stamp)) {
+      // fixed frame not available
+      return;
+    }
+    data_->unpack(scanMsg->packets[i], *container_ptr_, scanMsg->header.stamp);
   }
 
   // publish the accumulated cloud message

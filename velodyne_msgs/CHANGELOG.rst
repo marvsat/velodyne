@@ -1,6 +1,30 @@
 Change history
 ==============
 
+2.5.1 (2024-10-31)
+------------------
+
+2.5.0 (2024-10-30)
+------------------
+* Clalancette/cmake cleanups (`#546 <https://github.com/ros-drivers/velodyne/issues/546>`_)
+* Contributors: Chris Lalancette
+
+2.4.0 (2023-05-27)
+------------------
+
+2.3.0 (2022-07-08)
+------------------
+* Updating maintainer email address. (`#450 <https://github.com/ros-drivers/velodyne/issues/450>`_)
+  * Updating maintainer email address.
+  * chore: update maintainer email address
+  Co-authored-by: Joshua Whitley <jwhitley@autonomoustuff.com>
+* 2.1.1
+* Updating for first Galactic release
+* Contributors: Daisuke Nishimatsu, Joshua Whitley
+
+2.1.1 (2021-08-23)
+------------------
+
 2.1.0 (2020-07-10)
 ------------------
 
